@@ -1,0 +1,47 @@
+# --- Node / Frontend ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+frontend/.turbo/
+frontend/coverage/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# --- Python / Backend ---
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+
+# --- Env & secrets ---
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+backend/.env
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Generated docs artifacts (keep source, ignore rendered) ---
+docs/diagrams/*.png
+docs/diagrams/*.svg
+docs/reports/*.pdf
