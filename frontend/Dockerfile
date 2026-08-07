@@ -1,8 +1,13 @@
 FROM node:22-slim AS deps
 WORKDIR /app
-RUN npm install -g npm@11.2.0
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm ci demands byte-exact lockfile consistency, but this tree has
+# platform-gated optional native binaries (Tailwind's Oxide engine,
+# ESLint's resolver bindings) that make npm hoist the tree differently
+# per OS -- a lockfile written on Windows can fail npm ci's strict check
+# on Linux even though it's fully valid. npm install still resolves
+# from the lockfile's pinned versions but tolerates that platform drift.
+RUN npm install --no-audit --no-fund
 
 FROM node:22-slim AS build
 WORKDIR /app
