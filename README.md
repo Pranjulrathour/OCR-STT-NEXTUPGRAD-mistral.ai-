@@ -385,6 +385,7 @@ uploads) are written up with the real fix in
 | [`docs/security.md`](docs/security.md) | Threat model and mitigations |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Real bugs found, real root causes, real fixes |
 | [`docs/production-readiness.md`](docs/production-readiness.md) | Honest go/no-go checklist |
+| [`docs/deployment.md`](docs/deployment.md) | Free-tier hosting options and step-by-step deploy instructions |
 
 ## Roadmap
 
