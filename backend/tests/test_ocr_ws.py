@@ -30,7 +30,11 @@ def test_full_round_trip_returns_result(monkeypatch, fake_ocr_client) -> None:
     get_settings.cache_clear()
 
     assert messages[0] == {"total_pages": 1}
-    assert messages[1] == {"pages_done": 1, "total_pages": 1}
+    assert messages[1] == {
+        "pages_done": 1,
+        "total_pages": 1,
+        "completed_pages": [0],
+    }
     assert messages[2]["result"]["pages"] == 1
     assert "Page 0" in messages[2]["result"]["markdown"]
 

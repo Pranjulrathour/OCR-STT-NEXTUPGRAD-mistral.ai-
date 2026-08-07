@@ -9,10 +9,14 @@ file in fixed-size binary chunks (``UPLOAD_CHUNK_BYTES`` each — a real
 ``ws_max_size`` and silently broke the connection; chunking means the max
 single-frame size is ours to control and never depends on a server flag
 someone has to remember in every deployment). The server streams
-``{"total_pages": N}`` → repeated ``{"pages_done", "total_pages"}`` →
-``{"result": {...}}`` (or ``{"error": ...}``) as it OCRs the document in
-page batches — see ``mistral_ocr.extract_text_batched`` for why batching is
-what makes real progress possible at all.
+``{"total_pages": N}`` → repeated ``{"pages_done", "total_pages",
+"completed_pages"}`` → ``{"result": {...}}`` (or ``{"error": ...}``) as it
+OCRs the document in page batches — see ``mistral_ocr.extract_text_batched``
+for why batching is what makes real progress possible at all.
+``completed_pages`` is a full snapshot of 0-based page indices done so far
+(not a delta), since batches now complete concurrently rather than in
+strict page order — the UI can render a real page-by-page status grid off
+it without needing to reconcile out-of-order or missed events.
 """
 
 from __future__ import annotations
@@ -183,7 +187,11 @@ async def live_ocr(websocket: WebSocket) -> None:
                 await websocket.send_json({"total_pages": event.total_pages})
             elif event.kind == "progress":
                 await websocket.send_json(
-                    {"pages_done": event.pages_done, "total_pages": event.total_pages}
+                    {
+                        "pages_done": event.pages_done,
+                        "total_pages": event.total_pages,
+                        "completed_pages": event.completed_pages,
+                    }
                 )
             elif event.kind == "done" and event.result is not None:
                 await websocket.send_json(

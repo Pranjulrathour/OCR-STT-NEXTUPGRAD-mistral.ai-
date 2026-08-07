@@ -74,6 +74,11 @@ class OcrProgressEvent:
     kind: Literal["total_pages", "progress", "done"]
     total_pages: int | None = None
     pages_done: int | None = None
+    # Sorted 0-based page indices completed so far -- a full snapshot each
+    # time, not a delta, so the frontend can render a real page-by-page
+    # status grid without needing to reconcile missed/out-of-order events
+    # (batches complete concurrently, not strictly in page order).
+    completed_pages: list[int] | None = None
     result: OcrResult | None = None
 
 
@@ -207,7 +212,9 @@ async def extract_text_batched(
             content=content,
             settings=settings,
         )
-        yield OcrProgressEvent(kind="progress", pages_done=1, total_pages=1)
+        yield OcrProgressEvent(
+            kind="progress", pages_done=1, total_pages=1, completed_pages=[0]
+        )
         yield OcrProgressEvent(kind="done", result=result)
         return
 
@@ -252,7 +259,10 @@ async def extract_text_batched(
         for coro in asyncio.as_completed(tasks):
             all_pages.extend(await coro)
             yield OcrProgressEvent(
-                kind="progress", pages_done=len(all_pages), total_pages=total_pages
+                kind="progress",
+                pages_done=len(all_pages),
+                total_pages=total_pages,
+                completed_pages=sorted(page.index for page in all_pages),
             )
     finally:
         for task in tasks:

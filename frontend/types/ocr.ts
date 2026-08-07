@@ -27,10 +27,11 @@ export type OcrStage =
 export interface OcrProgress {
   pagesDone: number;
   totalPages: number;
+  completedPages: number[];
 }
 
 export type OcrLiveMessage =
   | { total_pages: number }
-  | { pages_done: number; total_pages: number }
+  | { pages_done: number; total_pages: number; completed_pages: number[] }
   | { result: OcrResultFields }
   | { error: string };

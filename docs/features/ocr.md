@@ -182,7 +182,7 @@ book OCR'd end-to-end in ~63 seconds at the default concurrency of 4.
 | Endpoint | Purpose |
 |---|---|
 | `POST /api/v1/ocr` | Single-shot, synchronous. For quick images/short docs and programmatic API consumers that don't need progress. |
-| `WS /api/v1/ocr/live` | Progressive, UI-facing. Client → server: `{filename, content_type, size}` then binary chunks. Server → client: `{total_pages}` → repeated `{pages_done, total_pages}` → `{result}` or `{error}`. |
+| `WS /api/v1/ocr/live` | Progressive, UI-facing. Client → server: `{filename, content_type, size}` then binary chunks. Server → client: `{total_pages}` → repeated `{pages_done, total_pages, completed_pages}` → `{result}` or `{error}`. `completed_pages` is a full snapshot of 0-based page indices done so far (not a delta) — the frontend's page-status grid renders directly off it. |
 
 `result` (`OcrSuccessResponse`): `filename`, `pages` (count), `markdown` /
 `plain_text` (whole document, joined), `page_contents` (list of

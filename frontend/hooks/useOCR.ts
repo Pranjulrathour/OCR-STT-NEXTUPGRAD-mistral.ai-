@@ -97,9 +97,13 @@ export function useOCR() {
         setStage("done");
         setResult(payload.result);
       } else if ("pages_done" in payload) {
-        setProgress({ pagesDone: payload.pages_done, totalPages: payload.total_pages });
+        setProgress({
+          pagesDone: payload.pages_done,
+          totalPages: payload.total_pages,
+          completedPages: payload.completed_pages,
+        });
       } else if ("total_pages" in payload) {
-        setProgress({ pagesDone: 0, totalPages: payload.total_pages });
+        setProgress({ pagesDone: 0, totalPages: payload.total_pages, completedPages: [] });
         setStage("extracting");
       } else if ("error" in payload) {
         setStage("error");
