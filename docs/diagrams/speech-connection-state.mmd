@@ -1,0 +1,20 @@
+stateDiagram-v2
+    [*] --> Disconnected
+    Disconnected --> Connecting: Start Recording
+    Connecting --> Listening: mic granted + WS open + worklet ready
+    Connecting --> Disconnected: mic permission denied
+    Listening --> Streaming: first transcript chunk arrives
+    Streaming --> Paused: Pause
+    Listening --> Paused: Pause
+    Paused --> Listening: Resume (same transcript, not restarted)
+    Streaming --> Stopped: Stop / Space
+    Listening --> Stopped: Stop / Space
+    Paused --> Stopped: Stop / Space
+    Stopped --> Disconnected: socket closes after refinement pass
+    Listening --> Disconnected: connection lost
+    Streaming --> Disconnected: connection lost
+
+    note right of Disconnected
+        NEXT UPGRAD WEB SOLUTIONS
+        Pranjul Rathour, GenAI Engineer
+    end note

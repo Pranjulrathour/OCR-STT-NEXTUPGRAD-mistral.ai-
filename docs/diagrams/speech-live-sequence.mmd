@@ -1,0 +1,34 @@
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant FE as Frontend (useSpeech)
+    participant WK as AudioWorklet
+    participant WS as Backend WS /speech/live
+    participant RT as Mistral Realtime API
+    participant BATCH as Mistral Batch API
+
+    U->>FE: Start Recording
+    FE->>WS: connect WebSocket
+    WS->>FE: {model: STT_REALTIME_MODEL}
+    FE->>WK: capture mic → PCM16 @16kHz
+
+    par continuous streaming
+        WK->>FE: PCM16 block (~8ms) + level
+        FE->>WS: binary frame (buffered audio)
+        WS->>RT: forward via transcribe_stream
+        RT-->>WS: TranscriptionStreamTextDelta
+        WS->>FE: {chunk: "word"}
+        FE->>U: append to transcript (never replace)
+    end
+
+    U->>FE: Stop (or Space)
+    FE->>WS: "stop" text frame
+    WS->>RT: flush + end audio
+    RT-->>WS: final deltas, then done
+    WS->>FE: {status: "refining"}
+    WS->>BATCH: re-transcribe buffered WAV (full context)
+    BATCH-->>WS: refined transcript
+    WS->>FE: {refined_transcript, language, model}
+    FE->>U: transcript replaced, "Refined" badge
+
+    Note over U,BATCH: NEXT UPGRAD WEB SOLUTIONS · Pranjul Rathour, GenAI Engineer

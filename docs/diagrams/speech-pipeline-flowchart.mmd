@@ -1,0 +1,28 @@
+flowchart TB
+    subgraph Browser
+        A[Click Start Recording /<br/>press Space] --> B[getUserMedia:<br/>request microphone]
+        B -- denied --> B1["Microphone permission required"<br/>with re-enable instructions]
+        B -- granted --> C["AudioContext({sampleRate:16000})"]
+        C --> D[AudioWorklet: pcm-worklet-processor.js]
+        D --> E["Float32 → Int16 PCM<br/>+ RMS level, ~30fps"]
+        E --> F[WS: send PCM16 binary frames]
+    end
+
+    subgraph Backend["WS /api/v1/speech/live"]
+        F --> G["client.audio.realtime.transcribe_stream<br/>(model=STT_REALTIME_MODEL, pcm_s16le, 16kHz)"]
+        G --> H["TranscriptionStreamTextDelta<br/>→ {chunk} frame"]
+        G --> I["TranscriptionStreamLanguage<br/>→ {language} frame"]
+        H --> J[Append-only transcript]
+        I --> J
+        J --> K{User clicks Stop /<br/>presses Space}
+        K -- "stop" text frame --> L[Buffered PCM → WAV]
+        L --> M["Batch model re-transcribe<br/>(full context, higher accuracy)"]
+        M --> N["{refined_transcript} frame<br/>replaces live transcript"]
+    end
+
+    subgraph footer[" "]
+        direction LR
+        Z["NEXT UPGRAD WEB SOLUTIONS · Pranjul Rathour, GenAI Engineer"]
+    end
+    style footer fill:none,stroke:#999,stroke-dasharray: 3 3
+    style Z fill:none,stroke:none,color:#888
