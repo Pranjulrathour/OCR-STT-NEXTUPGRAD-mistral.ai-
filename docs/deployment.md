@@ -24,7 +24,108 @@ Next.js app.
 | **Google Cloud Run** | 2M requests/month, 360k GB-seconds | WebSockets work but need `--session-affinity` enabled; most generous free tier by far, but the most setup (gcloud CLI + Docker) |
 | **Koyeb** | 1 free "nano" web service | No card required, supports WebSockets, but very limited CPU/RAM — expect it to feel slow under any real load |
 
-Railway is deliberately left off this list — it removed its indefinite free tier and now only gives a one-time trial credit, not a repeatable free plan.
+**Railway** is a valid third option and is covered in its own section below — it runs both services as real persistent processes (full WebSocket support on both), so architecturally it fits this app well. The one honest caveat: Railway no longer has an indefinite free tier — new accounts get a one-time trial credit (historically ~$5), after which it's pay-as-you-go (the Hobby plan is $5/month plus usage). It is not a "free forever" option the way Render's free Web Service or Vercel's Hobby tier are — budget for that before committing to it as your long-term host.
+
+---
+
+## Deploying both services on Railway
+
+Railway can host the frontend and backend as two separate services inside
+one project, both built from the same GitHub repo via their existing
+Dockerfiles — no separate build configuration needed.
+
+### 0. Before you start
+
+- [Mistral AI API key](https://console.mistral.ai/)
+- A Railway account (railway.app, sign in with GitHub)
+- This repo already pushed to GitHub (done)
+
+### 1. Create the project and the backend service
+
+1. Railway dashboard → **New Project** → **Deploy from GitHub repo** → select
+   `OCR-STT-NEXTUPGRAD-mistral.ai-`.
+2. Railway creates one service from the repo root. Open its **Settings**:
+   - **Source → Root Directory**: `backend`
+   - Railway will detect `backend/Dockerfile` and build with it automatically
+     (no Nixpacks config needed).
+3. **Variables** tab — add every row from the table below.
+4. **Settings → Networking → Generate Domain** — Railway assigns a public
+   URL like `https://backend-production-xxxx.up.railway.app` and
+   automatically routes it to whatever port your container listens on (the
+   backend's `Dockerfile` reads Railway's injected `$PORT` — see the fix
+   below — so this just works without you specifying a port number).
+5. Deploy. Confirm it's alive: open
+   `https://<your-backend-domain>/api/v1/health` in a browser.
+
+**Backend environment variables (Variables tab):**
+
+| Key | Value | Notes |
+|---|---|---|
+| `ENVIRONMENT` | `production` | Switches CORS to the explicit allowlist below |
+| `MISTRAL_API_KEY` | *your real Mistral API key* | Required — never commit this anywhere |
+| `MISTRAL_BASE_URL` | `https://api.mistral.ai` | |
+| `OCR_MODEL` | `mistral-ocr-latest` | |
+| `STT_MODEL` | `voxtral-mini-latest` | Batch/file transcription model |
+| `STT_REALTIME_MODEL` | `voxtral-mini-transcribe-realtime-2602` | Realtime streaming model — do not merge with `STT_MODEL` |
+| `STT_STREAMING_DELAY_MS` | `250` | |
+| `STT_REFINE_AFTER_STOP` | `true` | |
+| `CORS_ORIGINS` | *set after step 2 below* | Must exactly match the frontend's Railway domain, no trailing slash |
+| `MAX_UPLOAD_SIZE_MB` | `100` | |
+| `OCR_TIMEOUT_SECONDS` | `30` | |
+| `OCR_BATCH_PAGES` | `20` | |
+| `OCR_MAX_PAGES` | `1500` | |
+| `OCR_SECONDS_PER_PAGE` | `15` | |
+| `OCR_BATCH_TIMEOUT_FLOOR_SECONDS` | `60` | |
+| `SPEECH_TIMEOUT_SECONDS` | `60` | |
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | `10` | |
+
+Do **not** add a `PORT` variable yourself — Railway injects it
+automatically per-deploy, and the backend `Dockerfile`'s `CMD` already
+reads it (`--port ${PORT:-8000}`). Setting your own would fight Railway's
+assignment.
+
+### 2. Add the frontend service
+
+1. Same Railway project → **New** → **GitHub Repo** → same repo again
+   (Railway lets one project contain multiple services from the same repo).
+2. That new service's **Settings → Source → Root Directory**: `frontend`.
+   Railway detects `frontend/Dockerfile` and builds with it.
+3. **Variables** tab — add:
+
+   | Key | Value |
+   |---|---|
+   | `NEXT_PUBLIC_API_URL` | *the backend domain from step 1*, e.g. `https://backend-production-xxxx.up.railway.app` |
+
+   **This one matters**: `NEXT_PUBLIC_*` variables are baked into the
+   JavaScript bundle at *build* time, not read at runtime. Set this
+   **before** the first deploy runs. If you ever change the backend's
+   domain later, you must set the new value here and trigger a fresh
+   deploy (redeploy alone without a rebuild won't pick it up).
+4. **Settings → Networking → Generate Domain** for the frontend too —
+   you'll get something like `https://frontend-production-yyyy.up.railway.app`.
+   Next.js's `next start` (what the frontend `Dockerfile` runs) reads
+   Railway's `$PORT` automatically — no fix needed there.
+5. Deploy.
+
+### 3. Close the loop on CORS
+
+Go back to the **backend** service → **Variables** → set `CORS_ORIGINS` to
+the frontend's domain from step 2 (exact scheme + host, no trailing
+slash) → save. Railway redeploys the backend automatically on variable
+change. Without this step every request from the frontend will be
+rejected by the browser's CORS check, and OCR/Speech will look like
+"Connection lost" in the UI even though both services are technically up.
+
+### Railway-specific trade-offs
+
+- **Not indefinitely free** — see the caveat above; track your usage
+  against the trial credit / Hobby plan billing.
+- **No cold-start sleep** (unlike Render's free tier) — both services stay
+  warm, which is actually a better fit for this app's live-WebSocket
+  features than Render's free tier.
+- Same in-memory-rate-limiter and no-persistent-storage notes from the
+  Render section below apply here too — they're app-level facts, not
+  platform-specific.
 
 ---
 
