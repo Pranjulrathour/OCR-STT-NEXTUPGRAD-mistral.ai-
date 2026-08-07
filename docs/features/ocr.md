@@ -152,6 +152,31 @@ the same way — the first live test against a real textbook chapter timed
 out on batch one. Fixed with `Settings.ocr_batch_timeout_seconds(page_count)`
 = `max(OCR_BATCH_TIMEOUT_FLOOR_SECONDS, OCR_SECONDS_PER_PAGE × page_count)`.
 
+## Why batches are sliced into their own small PDF, not re-sent whole
+
+Found in production, not in testing: Mistral's `pages` parameter only
+*selects* which pages of an uploaded document to OCR — it still requires
+the entire document body on every call. The original implementation kept
+one base64-encoded copy of the whole file and reused it across every
+batch, meaning a 79MB/277-page real book was re-uploaded in full on all 14
+batch calls (~1.5GB of repeated uploads for one document). That's what
+crashed the deployed backend on batch 2 — confirmed by calling Mistral
+directly with the exact same batch, which succeeded fine outside the
+memory-constrained container, proving the content itself was never the
+problem. Each batch now slices only its own pages into a fresh, small PDF
+(via `pypdf.PdfWriter`) before encoding — a few MB instead of ~100MB per
+call.
+
+## Why batches run concurrently instead of one at a time
+
+Each Mistral OCR call is I/O-bound, so running several at once (bounded by
+`OCR_BATCH_CONCURRENCY`, default 4) cuts wall-clock time roughly N-fold
+instead of queuing every batch strictly one after another. Progress events
+now fire as soon as *any* batch completes — not in guaranteed page order,
+but the final result is always re-sorted by page index before assembly,
+so out-of-order completion never affects correctness. A real 277-page/79MB
+book OCR'd end-to-end in ~63 seconds at the default concurrency of 4.
+
 ## Contract
 
 | Endpoint | Purpose |
@@ -173,6 +198,7 @@ out on batch one. Fixed with `Settings.ocr_batch_timeout_seconds(page_count)`
 | `OCR_MAX_PAGES` | 1500 | Hard cap on total pages, rejected before any Mistral call |
 | `OCR_SECONDS_PER_PAGE` | 15 | Per-batch timeout budget, multiplied by batch size |
 | `OCR_BATCH_TIMEOUT_FLOOR_SECONDS` | 60 | Minimum per-batch timeout regardless of batch size |
+| `OCR_BATCH_CONCURRENCY` | 4 | Batches OCR'd concurrently rather than sequentially |
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | 10 | Per-IP cap — every call proxies to a paid Mistral request |
 
 ## Edge cases handled
@@ -196,6 +222,12 @@ out on batch one. Fixed with `Settings.ocr_batch_timeout_seconds(page_count)`
   table of contents, working page navigation, and cross-book search
   returning accurate per-page match counts. This run is what surfaced both
   the chunked-upload fix and the per-batch-timeout fix above.
+- **Real 277-page, 79MB MCA textbook**, run directly against the deployed
+  production backend over its live WebSocket. First attempt crashed on
+  batch 2 with the full-document-resend bug described above. After the
+  fix (per-batch slicing + concurrent batches), the same book completed
+  end-to-end in ~63 seconds with all 277 pages correctly ordered, no
+  duplicates, and no gaps.
 
 ---
 **Author:** Pranjul Rathour

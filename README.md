@@ -257,6 +257,7 @@ full annotated template).
 | `OCR_MAX_PAGES` | `1500` | Hard cap on total pages per document |
 | `OCR_SECONDS_PER_PAGE` | `15` | Per-batch timeout budget, scaled by batch size |
 | `OCR_BATCH_TIMEOUT_FLOOR_SECONDS` | `60` | Minimum per-batch timeout regardless of batch size |
+| `OCR_BATCH_CONCURRENCY` | `4` | Batches OCR'd concurrently rather than one-at-a-time — cuts wall-clock time roughly N-fold for multi-hundred-page documents |
 | `SPEECH_TIMEOUT_SECONDS` | `60` | Timeout for the single-shot transcription path |
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | `10` | Per-client-IP cap — every request proxies to a paid Mistral call |
 

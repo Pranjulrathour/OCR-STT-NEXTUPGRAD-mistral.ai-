@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     # Tune this once real per-page timing data exists for your documents.
     ocr_seconds_per_page: float = 15.0
     ocr_batch_timeout_floor_seconds: int = 60
+    # Batches run concurrently (bounded by this) rather than one-at-a-time —
+    # each Mistral OCR call is I/O-bound, so a few hundred pages finishes in
+    # roughly 1/N the time instead of a strictly serial queue. Kept modest
+    # by default so a single document doesn't itself look like a burst of
+    # abuse against Mistral's own per-key rate limits.
+    ocr_batch_concurrency: int = 4
 
     # Every OCR/Speech call proxies to a paid Mistral API call — this caps
     # abuse (or a retry-looping bug) per client IP, per endpoint family.

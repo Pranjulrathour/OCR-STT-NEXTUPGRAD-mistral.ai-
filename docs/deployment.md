@@ -76,6 +76,7 @@ Dockerfiles — no separate build configuration needed.
 | `OCR_MAX_PAGES` | `1500` | |
 | `OCR_SECONDS_PER_PAGE` | `15` | |
 | `OCR_BATCH_TIMEOUT_FLOOR_SECONDS` | `60` | |
+| `OCR_BATCH_CONCURRENCY` | `4` | Batches OCR concurrently rather than one-at-a-time — a few hundred pages finishes in roughly 1/N the time |
 | `SPEECH_TIMEOUT_SECONDS` | `60` | |
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | `10` | |
 

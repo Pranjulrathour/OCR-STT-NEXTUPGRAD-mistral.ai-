@@ -9,6 +9,8 @@ match any branch.
 
 from __future__ import annotations
 
+import base64
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -22,6 +24,7 @@ from mistralai.client.models.transcriptionstreamlanguage import (
 from mistralai.client.models.transcriptionstreamtextdelta import (
     TranscriptionStreamTextDelta,
 )
+from pypdf import PdfReader
 
 
 @pytest.fixture(autouse=True)
@@ -57,9 +60,14 @@ def make_transcription_response(
 
 
 class FakeOcrClient:
-    """`process_async` returns one page per requested index, titled by
-    that index — enough for tests to assert page count/ordering without
-    caring about real OCR content.
+    """`process_async` returns one page per page actually present in the
+    submitted document — mirrors real Mistral behavior now that the service
+    slices each batch into its own small PDF locally instead of passing a
+    `pages` filter alongside the full document (see `mistral_ocr.py` for
+    why: sending the whole document on every batch call was what crashed
+    the deployed backend on a real book-scale PDF). Falls back to a single
+    synthetic page for non-PDF payloads (images), since those aren't valid
+    PDFs to decode.
     """
 
     def __init__(self) -> None:
@@ -68,7 +76,15 @@ class FakeOcrClient:
 
     async def _process_async(self, *, model, document, pages=None):
         self.calls.append(pages)
-        indices = pages if pages is not None else [0]
+        data_uri = getattr(document, "document_url", None) or getattr(
+            document, "image_url", None
+        )
+        _, _, encoded = (data_uri or "").partition(",")
+        try:
+            count = len(PdfReader(BytesIO(base64.b64decode(encoded))).pages)
+        except Exception:
+            count = 1
+        indices = pages if pages is not None else list(range(count))
         return make_ocr_response(
             [make_ocr_page(i, f"# Page {i}\n\ncontent for page {i}") for i in indices]
         )

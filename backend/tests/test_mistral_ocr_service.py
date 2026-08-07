@@ -77,9 +77,12 @@ async def test_extract_text_batched_multi_batch_preserves_order(
     assert done_event.result.pages == 5
     assert [p.index for p in done_event.result.page_contents] == [0, 1, 2, 3, 4]
 
-    # Three batches: [0,1], [2,3], [4] — verifies the batching math actually
-    # drove three separate Mistral calls, not one call with all pages.
-    assert fake_ocr_client.calls == [[0, 1], [2, 3], [4]]
+    # Three batches of [0,1], [2,3], [4] pages each — verifies the batching
+    # math actually drove three separate Mistral calls, not one call with
+    # all pages. Each call now sends its own sliced sub-PDF rather than a
+    # `pages` filter (see mistral_ocr.py), so `calls` records `None` for
+    # each — the batch boundaries are verified via `progress_events` above.
+    assert fake_ocr_client.calls == [None, None, None]
 
 
 async def test_extract_text_batched_image_is_single_batch(fake_ocr_client) -> None:

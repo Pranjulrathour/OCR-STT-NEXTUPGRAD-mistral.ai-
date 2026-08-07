@@ -30,9 +30,10 @@ from dataclasses import dataclass
 from io import BytesIO
 from typing import Literal
 
+from mistralai.client import Mistral
 from mistralai.client.models.documenturlchunk import DocumentURLChunk
 from mistralai.client.models.imageurlchunk import ImageURLChunk
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PdfReadError
 
 from app.core.config import Settings
@@ -140,6 +141,57 @@ async def extract_text(
     )
 
 
+async def _ocr_one_batch(
+    client: Mistral,
+    reader: PdfReader,
+    batch_indices: list[int],
+    settings: Settings,
+) -> list[OcrPage]:
+    """OCRs one batch by slicing just its pages into their own small PDF
+    instead of re-sending the entire document. Mistral's `pages` param
+    only *selects* which pages of an uploaded document get OCR'd -- it
+    still requires the whole document body on every call, so a book-scale
+    PDF would otherwise be re-uploaded in full on every single batch (14
+    times over for a 277-page book at the default batch size). That
+    repeated ~100MB+ payload is what crashed the deployed backend on a
+    real book in production (confirmed by calling Mistral directly with
+    the same batch, which succeeded fine outside the memory-constrained
+    container) even though each batch itself is well within Mistral's own
+    limits.
+    """
+    writer = PdfWriter()
+    for page_index in batch_indices:
+        writer.add_page(reader.pages[page_index])
+    batch_buffer = BytesIO()
+    writer.write(batch_buffer)
+    batch_encoded = base64.b64encode(batch_buffer.getvalue()).decode("ascii")
+    batch_data_uri = f"data:application/pdf;base64,{batch_encoded}"
+
+    try:
+        response = await asyncio.wait_for(
+            client.ocr.process_async(
+                model=settings.ocr_model,
+                document=DocumentURLChunk(document_url=batch_data_uri),
+            ),
+            timeout=settings.ocr_batch_timeout_seconds(len(batch_indices)),
+        )
+    except TimeoutError as exc:
+        raise MistralTimeoutError("Processing timeout") from exc
+    except Exception as exc:
+        raise MistralServiceError(
+            "Unable to process your file. Please try again."
+        ) from exc
+
+    return [
+        OcrPage(
+            index=batch_indices[page.index],
+            markdown=page.markdown,
+            plain_text=_markdown_to_plain_text(page.markdown),
+        )
+        for page in response.pages or []
+    ]
+
+
 async def extract_text_batched(
     *, filename: str, content_type: str, content: bytes, settings: Settings
 ) -> AsyncIterator[OcrProgressEvent]:
@@ -160,7 +212,8 @@ async def extract_text_batched(
         return
 
     try:
-        total_pages = len(PdfReader(BytesIO(content)).pages)
+        reader = PdfReader(BytesIO(content))
+        total_pages = len(reader.pages)
     except PdfReadError as exc:
         raise MistralServiceError(
             "Unable to read this PDF. It may be corrupted or password protected."
@@ -177,42 +230,35 @@ async def extract_text_batched(
     yield OcrProgressEvent(kind="total_pages", total_pages=total_pages)
 
     client = get_mistral_client()
-    encoded = base64.b64encode(content).decode("ascii")
-    data_uri = f"data:{content_type};base64,{encoded}"
-
     batches = compute_page_batches(total_pages, settings.ocr_batch_pages)
     all_pages: list[OcrPage] = []
     start = time.perf_counter()
 
-    for batch_indices in batches:
-        try:
-            response = await asyncio.wait_for(
-                client.ocr.process_async(
-                    model=settings.ocr_model,
-                    document=DocumentURLChunk(document_url=data_uri),
-                    pages=batch_indices,
-                ),
-                timeout=settings.ocr_batch_timeout_seconds(len(batch_indices)),
-            )
-        except TimeoutError as exc:
-            raise MistralTimeoutError("Processing timeout") from exc
-        except Exception as exc:
-            raise MistralServiceError(
-                "Unable to process your file. Please try again."
-            ) from exc
+    semaphore = asyncio.Semaphore(max(1, settings.ocr_batch_concurrency))
 
-        for page in response.pages or []:
-            all_pages.append(
-                OcrPage(
-                    index=page.index,
-                    markdown=page.markdown,
-                    plain_text=_markdown_to_plain_text(page.markdown),
-                )
-            )
+    async def run_batch(batch_indices: list[int]) -> list[OcrPage]:
+        async with semaphore:
+            return await _ocr_one_batch(client, reader, batch_indices, settings)
 
-        yield OcrProgressEvent(
-            kind="progress", pages_done=len(all_pages), total_pages=total_pages
-        )
+    tasks = [asyncio.create_task(run_batch(batch)) for batch in batches]
+    try:
+        # as_completed yields whichever batch finishes first, not
+        # necessarily in page order -- running up to
+        # `ocr_batch_concurrency` Mistral calls at once (rather than one
+        # strictly sequential call per batch) is what turns a few-hundred-
+        # page book from a serial multi-minute queue into something that
+        # finishes in roughly 1/N the time, and progress now reflects real
+        # completions as they land instead of a fixed schedule.
+        for coro in asyncio.as_completed(tasks):
+            all_pages.extend(await coro)
+            yield OcrProgressEvent(
+                kind="progress", pages_done=len(all_pages), total_pages=total_pages
+            )
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     processing_time = time.perf_counter() - start
     all_pages.sort(key=lambda page: page.index)
