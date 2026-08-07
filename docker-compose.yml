@@ -11,11 +11,25 @@ services:
       MISTRAL_BASE_URL: ${MISTRAL_BASE_URL:-https://api.mistral.ai}
       OCR_MODEL: ${OCR_MODEL:-mistral-ocr-latest}
       STT_MODEL: ${STT_MODEL:-voxtral-mini-latest}
+      STT_REALTIME_MODEL: ${STT_REALTIME_MODEL:-voxtral-mini-transcribe-realtime-2602}
+      STT_STREAMING_DELAY_MS: ${STT_STREAMING_DELAY_MS:-250}
+      STT_REFINE_AFTER_STOP: ${STT_REFINE_AFTER_STOP:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-100}
       OCR_TIMEOUT_SECONDS: ${OCR_TIMEOUT_SECONDS:-30}
       SPEECH_TIMEOUT_SECONDS: ${SPEECH_TIMEOUT_SECONDS:-60}
+      OCR_BATCH_PAGES: ${OCR_BATCH_PAGES:-20}
+      OCR_MAX_PAGES: ${OCR_MAX_PAGES:-1500}
+      OCR_SECONDS_PER_PAGE: ${OCR_SECONDS_PER_PAGE:-15}
+      OCR_BATCH_TIMEOUT_FLOOR_SECONDS: ${OCR_BATCH_TIMEOUT_FLOOR_SECONDS:-60}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-10}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   frontend:
     build:
