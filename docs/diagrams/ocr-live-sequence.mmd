@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant FE as Frontend (useOCR)
+    participant WS as Backend WS /ocr/live
+    participant PDF as pypdf (local)
+    participant M as Mistral OCR API
+
+    U->>FE: Click "Extract Text"
+    FE->>WS: connect WebSocket
+    FE->>WS: {filename, content_type, size}
+    loop every 512KB chunk
+        FE->>WS: binary frame
+    end
+    WS->>WS: validate size + content type
+
+    alt content_type is application/pdf
+        WS->>PDF: count pages (no network call)
+        PDF-->>WS: total_pages
+    else content_type is image
+        WS->>WS: total_pages = 1
+    end
+
+    WS->>FE: {total_pages}
+
+    loop each batch of OCR_BATCH_PAGES
+        WS->>M: POST /v1/ocr (pages=[...])
+        M-->>WS: markdown per requested page
+        WS->>FE: {pages_done, total_pages}
+    end
+
+    WS->>FE: {result: {markdown, plain_text, page_contents, model, ...}}
+    FE->>U: Book Reader (TOC · page nav · search)
+
+    Note over U,M: NEXT UPGRAD WEB SOLUTIONS · Pranjul Rathour, GenAI Engineer

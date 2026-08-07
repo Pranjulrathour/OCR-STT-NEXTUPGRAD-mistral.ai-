@@ -1,0 +1,39 @@
+flowchart TB
+    subgraph Client["Browser"]
+        A[User selects file] --> B{Valid type/size?}
+        B -- No --> B1[Toast: friendly error]
+        B -- Yes --> C[Click Extract Text]
+    end
+
+    subgraph WS["WS /api/v1/ocr/live"]
+        C --> D[Send JSON metadata<br/>filename · content_type · size]
+        D --> E[Send file as 512KB binary chunks]
+        E --> F{Size within<br/>MAX_UPLOAD_SIZE_MB?}
+        F -- No --> F1["error frame + close"]
+        F -- Yes --> G{Content type}
+        G -- image --> H[Single Mistral OCR call<br/>1-page fast path]
+        G -- application/pdf --> I[pypdf: count real pages<br/>locally, no network call]
+        I --> J{pages > OCR_MAX_PAGES?}
+        J -- Yes --> J1["error frame + close"]
+        J -- No --> K[Split into batches of<br/>OCR_BATCH_PAGES]
+        K --> L["Mistral OCR process_async<br/>(pages = batch indices)"]
+        L --> M["progress frame<br/>{pages_done, total_pages}"]
+        M --> L
+        L --> N[All batches complete]
+        H --> N
+        N --> O[Sort pages by index ·<br/>join markdown + plain_text]
+        O --> P["result frame"]
+    end
+
+    subgraph UI["Book Reader"]
+        P --> Q[Parse markdown headings<br/>→ Table of Contents]
+        Q --> R[Page-by-page navigation]
+        R --> S[Search across all pages<br/>with highlighted matches]
+    end
+
+    subgraph footer[" "]
+        direction LR
+        Z["NEXT UPGRAD WEB SOLUTIONS · Pranjul Rathour, GenAI Engineer"]
+    end
+    style footer fill:none,stroke:#999,stroke-dasharray: 3 3
+    style Z fill:none,stroke:none,color:#888

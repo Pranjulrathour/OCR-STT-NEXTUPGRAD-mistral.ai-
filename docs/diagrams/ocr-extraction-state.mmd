@@ -1,0 +1,19 @@
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Selected: file chosen (client-validated)
+    Selected --> Idle: Remove file
+    Selected --> Uploading: Click Extract Text
+    Uploading --> Extracting: total_pages received
+    Extracting --> Extracting: progress frame
+    Extracting --> Done: result frame
+    Uploading --> Error: error frame / connection lost
+    Extracting --> Error: error frame
+    Done --> Idle: New Upload / Clear
+    Error --> Uploading: Retry
+    Done --> [*]
+    Error --> [*]
+
+    note right of Error
+        NEXT UPGRAD WEB SOLUTIONS
+        Pranjul Rathour, GenAI Engineer
+    end note
