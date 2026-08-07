@@ -34,6 +34,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# --- Local AI tooling config (not part of the app) ---
+.claude/
+
 # --- Logs ---
 *.log
 npm-debug.log*
