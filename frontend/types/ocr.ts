@@ -12,6 +12,8 @@ export interface OcrResultFields {
   processing_time: number;
   model: string;
   page_contents: OcrPage[];
+  /** Handle for asking the document assistant about this document. */
+  document_id: string | null;
 }
 
 export type OcrOutputTab = "markdown" | "plain_text";
@@ -34,4 +36,6 @@ export type OcrLiveMessage =
   | { total_pages: number }
   | { pages_done: number; total_pages: number; completed_pages: number[] }
   | { result: OcrResultFields }
+  | { rag_indexed: { document_id: string; chunks: number } }
+  | { rag_error: string }
   | { error: string };

@@ -21,6 +21,8 @@ it without needing to reconcile out-of-order or missed events.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -39,6 +41,7 @@ from app.services import mistral_ocr, rag
 from app.utils.file import sanitize_filename
 from app.utils.validators import validate_ocr_upload
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ocr"])
 
 # Comfortably under any WS server's default max-frame-size (uvicorn's is
@@ -70,8 +73,11 @@ async def _receive_chunked_upload(
     return bytes(buffer)
 
 
-def _to_response(result: mistral_ocr.OcrResult) -> OcrSuccessResponse:
+def _to_response(
+    result: mistral_ocr.OcrResult, *, document_id: str | None = None
+) -> OcrSuccessResponse:
     return OcrSuccessResponse(
+        document_id=document_id,
         filename=result.filename,
         pages=result.pages,
         markdown=result.markdown,
@@ -121,15 +127,11 @@ async def extract_ocr_text(
     except MistralServiceError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
-    response = _to_response(result)
-    try:
-        await rag.index_ocr_result(response, settings)
-    except Exception:
-        # OCR remains successful even if the optional RAG index is unavailable.
-        # The error is logged so operators can diagnose embedding/vector-store issues.
-        import logging
-        logging.getLogger(__name__).exception("RAG indexing failed after OCR")
-    return response
+    # Indexing is scheduled, not awaited: embedding a book-scale document is
+    # thousands of calls and the caller should not wait for them to see their
+    # text. The id is content-derived, so it is valid immediately.
+    document_id = rag.schedule_indexing(result, settings)
+    return _to_response(result, document_id=document_id)
 
 
 @router.websocket("/ocr/live")
@@ -202,16 +204,25 @@ async def live_ocr(websocket: WebSocket) -> None:
                     }
                 )
             elif event.kind == "done" and event.result is not None:
-                response = _to_response(event.result)
+                document_id = rag.document_id_for(event.result, settings)
+                response = _to_response(event.result, document_id=document_id)
                 await websocket.send_json({"result": response.model_dump()})
+                # The result is already on the wire, so indexing can be awaited
+                # here and reported separately.
                 try:
-                    indexed = await rag.index_ocr_result(response, settings)
-                    await websocket.send_json({"rag_indexed": indexed})
-                except Exception:
-                    import logging
-                    logging.getLogger(__name__).exception("RAG indexing failed after OCR")
+                    indexed = await rag.index_document(event.result, settings)
                     await websocket.send_json(
-                        {"rag_error": "Document extracted, but RAG indexing failed."}
+                        {
+                            "rag_indexed": {
+                                "document_id": indexed.document_id,
+                                "chunks": indexed.chunks,
+                            }
+                        }
+                    )
+                except (MistralServiceError, MistralTimeoutError, ValueError):
+                    logger.exception("RAG indexing failed after OCR")
+                    await websocket.send_json(
+                        {"rag_error": "Document extracted, but indexing failed."}
                     )
     except (MistralServiceError, MistralTimeoutError) as exc:
         try:

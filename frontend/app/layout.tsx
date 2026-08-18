@@ -8,6 +8,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { Toaster } from "@/components/ui/sonner";
 import { RagChatWidget } from "@/components/rag/rag-chat-widget";
+import { ActiveDocumentProvider } from "@/components/rag/active-document";
 
 import "./globals.css";
 
@@ -47,10 +48,12 @@ export default function RootLayout({
         >
           <TooltipProvider>
             <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <Toaster />
-            <RagChatWidget />
+            <ActiveDocumentProvider>
+              <main className="flex-1">{children}</main>
+              <Footer />
+              <Toaster />
+              <RagChatWidget />
+            </ActiveDocumentProvider>
           </TooltipProvider>
         </ThemeProvider>
       </body>

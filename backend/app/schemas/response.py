@@ -38,6 +38,10 @@ class OcrSuccessResponse(BaseModel):
     processing_time: float
     model: str
     page_contents: list[OcrPageResponse]
+    # Handle for asking questions about this document via /api/v1/rag/chat.
+    # ``None`` when indexing was unavailable — OCR still succeeded, but the
+    # document assistant cannot answer about it.
+    document_id: str | None = None
 
 
 class SpeechTranscribeSuccessResponse(BaseModel):
@@ -49,14 +53,6 @@ class SpeechTranscribeSuccessResponse(BaseModel):
     model: str
 
 
-class RagIndexResponse(BaseModel):
-    success: bool = True
-    document_id: str
-    filename: str
-    pages: int
-    chunks: int
-
-
 class RagSourceResponse(BaseModel):
     filename: str
     page: int
@@ -65,6 +61,13 @@ class RagSourceResponse(BaseModel):
 
 
 class RagChatRequest(BaseModel):
+    """A question about one specific indexed document.
+
+    ``document_id`` is required: it is what confines retrieval to the document
+    the caller uploaded instead of every document on the host.
+    """
+
+    document_id: str = Field(min_length=1, max_length=64)
     question: str = Field(min_length=1, max_length=4000)
 
 
@@ -73,3 +76,9 @@ class RagChatResponse(BaseModel):
     answer: str
     found: bool
     sources: list[RagSourceResponse]
+
+
+class RagDeleteResponse(BaseModel):
+    success: bool = True
+    document_id: str
+    chunks_removed: int

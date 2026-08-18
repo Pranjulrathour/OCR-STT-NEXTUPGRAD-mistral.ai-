@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { askRag } from "@/services/rag.service";
 import type { RagSource } from "@/types/rag";
+import { useActiveDocument } from "@/components/rag/active-document";
 import { cn } from "@/lib/utils";
 
 type Message = {
@@ -15,27 +16,34 @@ type Message = {
   sources?: RagSource[];
 };
 
+const GREETING =
+  "Ask me anything about the document you just extracted. I only use text found in that document.";
+
 export function RagChatWidget() {
+  const { document: activeDocument } = useActiveDocument();
   const [open, setOpen] = React.useState(false);
   const [question, setQuestion] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [messages, setMessages] = React.useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Ask me anything about the uploaded documents. I will only use information found in the document index.",
-    },
+    { role: "assistant", content: GREETING },
   ]);
+
+  // Switching documents has to clear the transcript, otherwise answers about
+  // the previous document stay on screen looking like answers about this one.
+  const documentId = activeDocument?.documentId ?? null;
+  React.useEffect(() => {
+    setMessages([{ role: "assistant", content: GREETING }]);
+  }, [documentId]);
 
   const submit = async () => {
     const value = question.trim();
-    if (!value || loading) return;
+    if (!value || loading || !documentId) return;
 
     setQuestion("");
     setMessages((current) => [...current, { role: "user", content: value }]);
     setLoading(true);
 
-    const response = await askRag(value);
+    const response = await askRag(documentId, value);
     if (response.success) {
       setMessages((current) => [
         ...current,
@@ -65,7 +73,9 @@ export function RagChatWidget() {
             <div>
               <p className="text-sm font-semibold">Document Assistant</p>
               <p className="text-xs text-muted-foreground">
-                Answers from uploaded documents
+                {activeDocument
+                  ? `Answers from ${activeDocument.filename}`
+                  : "Extract a document to ask questions"}
               </p>
             </div>
             <Button
@@ -121,15 +131,19 @@ export function RagChatWidget() {
                     void submit();
                   }
                 }}
-                placeholder="Ask about the uploaded PDF…"
+                placeholder={
+                  documentId
+                    ? "Ask about this document…"
+                    : "Extract a document first…"
+                }
                 className="min-h-10 max-h-28 resize-none"
-                disabled={loading}
+                disabled={loading || !documentId}
               />
               <Button
                 size="icon"
                 aria-label="Send question"
                 onClick={() => void submit()}
-                disabled={loading || !question.trim()}
+                disabled={loading || !question.trim() || !documentId}
               >
                 <Send />
               </Button>

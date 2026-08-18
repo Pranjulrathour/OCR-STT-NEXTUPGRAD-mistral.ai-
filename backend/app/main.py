@@ -15,6 +15,7 @@ from app.core.constants import API_V1_PREFIX, APP_VERSION
 from app.middleware.cors import configure_cors
 from app.middleware.logging import RequestContextMiddleware
 from app.schemas.response import ErrorResponse
+from app.services import rag as rag_service
 
 logger = logging.getLogger("app")
 
@@ -39,6 +40,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "Starting Mistral AI Workspace API v%s [%s]", APP_VERSION, settings.environment
     )
     yield
+    # Let in-flight background index jobs finish so a redeploy does not lose
+    # work the client was already told to expect.
+    await rag_service.drain_pending()
     logger.info("Shutting down Mistral AI Workspace API")
 
 
