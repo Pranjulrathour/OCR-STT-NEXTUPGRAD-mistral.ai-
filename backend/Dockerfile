@@ -12,6 +12,14 @@ COPY app ./app
 RUN pip install --no-cache-dir .
 
 RUN useradd --create-home --shell /bin/bash appuser
+
+# The RAG index is written at runtime, but /app is root-owned and the process
+# runs as `appuser` — without this the first indexing attempt dies on EACCES.
+# Mount a volume here in any deployment that should survive a redeploy.
+RUN mkdir -p /app/data/rag && chown -R appuser:appuser /app/data
+ENV RAG_INDEX_DIR=/app/data/rag
+VOLUME ["/app/data"]
+
 USER appuser
 
 EXPOSE 8000

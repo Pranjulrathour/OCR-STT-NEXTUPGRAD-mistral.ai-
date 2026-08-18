@@ -24,7 +24,21 @@ services:
       OCR_BATCH_TIMEOUT_FLOOR_SECONDS: ${OCR_BATCH_TIMEOUT_FLOOR_SECONDS:-60}
       OCR_BATCH_CONCURRENCY: ${OCR_BATCH_CONCURRENCY:-4}
       RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-10}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-mistral-embed}
+      RAG_CHAT_MODEL: ${RAG_CHAT_MODEL:-mistral-small-latest}
+      RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-1200}
+      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-200}
+      RAG_EMBEDDING_BATCH_SIZE: ${RAG_EMBEDDING_BATCH_SIZE:-32}
+      RAG_EMBEDDING_CONCURRENCY: ${RAG_EMBEDDING_CONCURRENCY:-4}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      RAG_SIMILARITY_THRESHOLD: ${RAG_SIMILARITY_THRESHOLD:-0.5}
+      RAG_CHAT_TEMPERATURE: ${RAG_CHAT_TEMPERATURE:-0.1}
+      RAG_EMBEDDING_TIMEOUT_SECONDS: ${RAG_EMBEDDING_TIMEOUT_SECONDS:-120}
+      RAG_CHAT_TIMEOUT_SECONDS: ${RAG_CHAT_TIMEOUT_SECONDS:-90}
+      RAG_INDEX_DIR: ${RAG_INDEX_DIR:-/app/data/rag}
     restart: unless-stopped
+    volumes:
+      - ./backend/data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 30s

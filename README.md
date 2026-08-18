@@ -404,6 +404,43 @@ uploads) are written up with the real fix in
 
 [MIT](LICENSE) © 2026 Pranjul Rathour
 
+## Document assistant (RAG)
+
+Once a document has been OCR'd, the floating **Document Assistant** answers
+questions about it — grounded strictly in that document's own text, with
+filename/page citations.
+
+How it works, and the two constraints that shaped it:
+
+1. **Indexing is a side effect of OCR, never a client-callable endpoint.**
+   `POST /api/v1/ocr` returns a `document_id` alongside the extracted text, and
+   the pages are chunked and embedded (`mistral-embed`) into a FAISS index
+   server-side. There is deliberately no endpoint that accepts document *text* —
+   one would let any caller plant arbitrary content under any filename and have
+   the assistant cite it back as fact.
+2. **Retrieval is always scoped to one `document_id`.** `POST /api/v1/rag/chat`
+   requires it, and the FAISS search is restricted to that document's rows via an
+   `IDSelectorArray`. Without scoping, one person's question retrieves from every
+   document ever uploaded to the host.
+
+Indexing does **not** block the OCR response: the `document_id` is derived from a
+content hash, so it is valid immediately and the embedding work runs in the
+background (awaited on shutdown). The same hash makes re-uploading a file a no-op
+instead of a second identical copy in the index.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/rag/chat` | Ask a question about one `document_id` |
+| `DELETE /api/v1/rag/documents/{document_id}` | Drop a document's vectors |
+
+Settings live in `backend/.env.example` (all `RAG_*` keys). A note on
+persistence: the index is a file on disk, so any deployment that should keep it
+across restarts needs a volume mounted at the index directory —
+`docker-compose.yml` mounts `./backend/data`, and the image declares
+`VOLUME /app/data`. On a platform with an ephemeral filesystem (Railway, Render,
+Cloud Run) attach a persistent volume there, otherwise the index resets on every
+redeploy and documents have to be re-uploaded.
+
 ---
 **Author:** Pranjul Rathour
 **Designation:** GenAI Engineer

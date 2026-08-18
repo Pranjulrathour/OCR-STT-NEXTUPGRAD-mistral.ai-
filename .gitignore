@@ -41,6 +41,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# --- Generated RAG index ---
+backend/data/
+
 # --- Docker ---
 docker-compose.override.yml
 

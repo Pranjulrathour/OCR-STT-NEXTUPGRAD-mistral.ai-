@@ -1,9 +1,11 @@
 "use client";
 
+import * as React from "react";
 import { FileText } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { ErrorBanner } from "@/components/common/error-banner";
+import { useActiveDocument } from "@/components/rag/active-document";
 import { useOCR } from "@/hooks/useOCR";
 
 import { FilePreviewCard } from "./file-preview-card";
@@ -25,6 +27,17 @@ export function OcrView() {
     extract,
     reset,
   } = useOCR();
+
+  // Publish the extracted document so the assistant answers about this
+  // document and nothing else. Cleared on unmount and whenever the result goes
+  // away, so a stale id can never outlive what is on screen.
+  const { setDocument } = useActiveDocument();
+  const documentId = result?.document_id ?? null;
+  const filename = result?.filename ?? null;
+  React.useEffect(() => {
+    setDocument(documentId && filename ? { documentId, filename } : null);
+    return () => setDocument(null);
+  }, [documentId, filename, setDocument]);
 
   if (stage === "idle") {
     return (
