@@ -408,3 +408,14 @@ uploads) are written up with the real fix in
 **Author:** Pranjul Rathour
 **Designation:** GenAI Engineer
 **Organization:** NEXT UPGRAD WEB SOLUTIONS
+
+
+## Document RAG Chatbot
+
+The workspace now includes a document-grounded RAG pipeline. OCR output is automatically
+chunked and embedded with Mistral `mistral-embed`, stored in a persistent FAISS vector
+index, and retrieved by the document assistant. The assistant uses Mistral chat to answer
+only from retrieved document context and returns filename/page sources when available.
+
+RAG settings are available in `backend/.env.example`. In Docker, `./backend/data` is
+mounted so the FAISS index survives container restarts.

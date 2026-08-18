@@ -65,6 +65,18 @@ class Settings(BaseSettings):
     # abuse against Mistral's own per-key rate limits.
     ocr_batch_concurrency: int = 4
 
+    # RAG
+    rag_embedding_model: str = "mistral-embed"
+    rag_chat_model: str = "mistral-small-latest"
+    rag_chunk_size: int = 1200
+    rag_chunk_overlap: int = 200
+    rag_embedding_batch_size: int = 32
+    rag_top_k: int = 5
+    rag_similarity_threshold: float = 0.35
+    rag_embedding_timeout_seconds: float = 120.0
+    rag_chat_timeout_seconds: float = 90.0
+    rag_index_dir: str = "data/rag"
+
     # Every OCR/Speech call proxies to a paid Mistral API call — this caps
     # abuse (or a retry-looping bug) per client IP, per endpoint family.
     rate_limit_requests_per_minute: int = 10

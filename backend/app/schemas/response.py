@@ -8,7 +8,7 @@ abstract shape; these models are its concrete, per-endpoint instantiations.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ErrorResponse(BaseModel):
@@ -47,3 +47,29 @@ class SpeechTranscribeSuccessResponse(BaseModel):
     duration: float
     processing_time: float
     model: str
+
+
+class RagIndexResponse(BaseModel):
+    success: bool = True
+    document_id: str
+    filename: str
+    pages: int
+    chunks: int
+
+
+class RagSourceResponse(BaseModel):
+    filename: str
+    page: int
+    score: float
+    snippet: str
+
+
+class RagChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=4000)
+
+
+class RagChatResponse(BaseModel):
+    success: bool = True
+    answer: str
+    found: bool
+    sources: list[RagSourceResponse]

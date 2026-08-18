@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.api import health, ocr, speech
+from app.api import health, ocr, rag, speech
 from app.core.config import get_settings
 from app.core.constants import API_V1_PREFIX, APP_VERSION
 from app.middleware.cors import configure_cors
@@ -57,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=API_V1_PREFIX)
     app.include_router(ocr.router, prefix=API_V1_PREFIX)
     app.include_router(speech.router, prefix=API_V1_PREFIX)
+    app.include_router(rag.router, prefix=API_V1_PREFIX)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:

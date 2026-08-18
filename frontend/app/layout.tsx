@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { Toaster } from "@/components/ui/sonner";
+import { RagChatWidget } from "@/components/rag/rag-chat-widget";
 
 import "./globals.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({
             <main className="flex-1">{children}</main>
             <Footer />
             <Toaster />
+            <RagChatWidget />
           </TooltipProvider>
         </ThemeProvider>
       </body>

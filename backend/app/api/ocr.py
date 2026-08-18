@@ -35,7 +35,7 @@ from app.core.config import SettingsDep, get_settings
 from app.core.exceptions import MistralServiceError, MistralTimeoutError
 from app.core.rate_limiter import get_rate_limiter
 from app.schemas.response import OcrPageResponse, OcrSuccessResponse
-from app.services import mistral_ocr
+from app.services import mistral_ocr, rag
 from app.utils.file import sanitize_filename
 from app.utils.validators import validate_ocr_upload
 
@@ -121,7 +121,15 @@ async def extract_ocr_text(
     except MistralServiceError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
-    return _to_response(result)
+    response = _to_response(result)
+    try:
+        await rag.index_ocr_result(response, settings)
+    except Exception:
+        # OCR remains successful even if the optional RAG index is unavailable.
+        # The error is logged so operators can diagnose embedding/vector-store issues.
+        import logging
+        logging.getLogger(__name__).exception("RAG indexing failed after OCR")
+    return response
 
 
 @router.websocket("/ocr/live")
@@ -194,9 +202,17 @@ async def live_ocr(websocket: WebSocket) -> None:
                     }
                 )
             elif event.kind == "done" and event.result is not None:
-                await websocket.send_json(
-                    {"result": _to_response(event.result).model_dump()}
-                )
+                response = _to_response(event.result)
+                await websocket.send_json({"result": response.model_dump()})
+                try:
+                    indexed = await rag.index_ocr_result(response, settings)
+                    await websocket.send_json({"rag_indexed": indexed})
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).exception("RAG indexing failed after OCR")
+                    await websocket.send_json(
+                        {"rag_error": "Document extracted, but RAG indexing failed."}
+                    )
     except (MistralServiceError, MistralTimeoutError) as exc:
         try:
             await websocket.send_json({"error": str(exc)})
